@@ -42,6 +42,6 @@ Follow these steps to set up and run the project on your local machine:
 5. **Generate model files:**
 Run the `model_building.ipynb` Jupyter notebook to generate `model.pkl` and `scaler.pkl` files.
 
-6. **Run the main application:**
+6. **Run the main.py file:**
 
 Now you're all set to use the Crop Recommendation System! Happy farming! 🌾
