@@ -1,90 +1,145 @@
-from flask import Flask, request, render_template
-import pickle
-import pandas as pd
-import tensorflow as tf
-import numpy as np
+from flask import Flask, render_template, request, jsonify
+import requests
+import joblib
+import os
 
 app = Flask(__name__)
 
-# Load the saved model
-with open('model.pkl', 'rb') as file:
-    model = pickle.load(file)
+class Website():
+    def __init__(self):
+        self.app = app
+        self.setup_routes()
 
-# Function to preprocess input data for prediction
-def preprocess_input(Nitrogen, Phosphorus, Potassium, pH, Temperature, District_Name, Soil_color):
-    # Create a DataFrame from the input values
-    input_data = pd.DataFrame({
-        'Nitrogen': [Nitrogen],
-        'Phosphorus': [Phosphorus],
-        'Potassium': [Potassium],
-        'pH': [pH],
-        'Temperature': [Temperature],
-        'District_Name': [District_Name],
-        'Soil_color': [Soil_color]
-    })
+    def setup_routes(self):
+        self.app.add_url_rule('/', 'home2', self.home2)
+        self.app.add_url_rule('/get_location', 'get_location', self.get_weather, methods=['POST'])
+        self.app.add_url_rule('/home2', 'home2', self.home2)
+        self.app.add_url_rule('/final2', 'final2', self.final2)
+        self.app.add_url_rule('/about2', 'about', self.about)
+        self.app.add_url_rule('/run_function', 'run_function', self.run_function, methods=['POST'])
+        self.app.add_url_rule('/soil_prediction2', 'soil_prediction', self.soil_prediction)
+        self.app.add_url_rule('/submit_form', 'submit_form', self.submit_form, methods=['POST'])
 
-    # One-hot encode categorical columns
-    district_dummies = pd.get_dummies(input_data['District_Name'], prefix='District_Name')
-    soil_color_dummies = pd.get_dummies(input_data['Soil_color'], prefix='Soil_color')
+    def home2(self):
+        return render_template('home2.html')
 
-    # Concatenate the original columns with the one-hot encoded columns
-    input_data = pd.concat([input_data[['Nitrogen', 'Phosphorus', 'Potassium', 'pH', 'Temperature']], district_dummies, soil_color_dummies], axis=1)
+    def about(self):
+        return render_template('about2.html')
 
-    # Define all expected columns for the model
-    all_columns = [
-        'Nitrogen', 'Phosphorus', 'Potassium', 'pH', 'Temperature',
-        'District_Name_Kolhapur', 'District_Name_Pune', 'District_Name_Sangli', 'District_Name_Satara', 'District_Name_Solapur',
-        'Soil_color_Black', 'Soil_color_Dark Brown', 'Soil_color_Light Brown', 'Soil_color_Medium Brown', 'Soil_color_Red', 'Soil_color_Reddish Brown'
-    ]
-    
-    # Reindex the DataFrame to include all expected columns, filling missing columns with zeros
-    input_data = input_data.reindex(columns=all_columns, fill_value=0)
+    def run_function(self):
+        print("Function executed successfully")
+        return 'Function executed'
 
-    return input_data
+    def soil_prediction(self):
+        return render_template('soil_prediction2.html')
 
-# Function to scale input data using a pre-fitted scaler
-def scale_input(data):
-    with open('scaler.pkl', 'rb') as file:
-        scaler = pickle.load(file)
-    scaled_data = scaler.transform(data)
-    return scaled_data
+    def submit_form(self):
+        self.soil_type = request.form['soilColor']
+        self.nitrogen = float(request.form['nitrogen'])
+        self.phosphorus = float(request.form['phosphorus'])
+        self.potassium = float(request.form['potassium'])
+        self.water = int(request.form['water'])
+        self.temperature = float(request.form['temperature'])
+        self.crop_arr = [[self.soil_type,self.nitrogen,self.phosphorus,self.potassium,self.temperature,self.water]]
+        crop_output ,fertilizer_output = self.final2()
+        return render_template('final2.html', crop_output=crop_output, fertilizer_output=fertilizer_output)
 
-# Function to map prediction output to crop names
-def predicted_crop(predicted_data):
-    crop_list = ['Sugarcane', 'Jowar', 'Cotton', 'Rice', 'Wheat', 'Groundnut',
-       'Maize', 'Tur', 'Urad', 'Moong', 'Gram', 'Masoor', 'Soybean',
-       'Ginger', 'Turmeric', 'Grapes']
-    return crop_list[np.argmax(predicted_data)]
+    def final2(self):
+        current_directory = os.getcwd()
+        print(current_directory)
+        crop = joblib.load(current_directory+'/crop.pkl')
+        grip = int(crop.predict(self.crop_arr))
+        crop_output = self.crop_perticular(grip)
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+        self.crop_arr2=[[self.soil_type,self.nitrogen,self.phosphorus,self.potassium,self.temperature,self.water,grip]]
+        fertilizer = joblib.load(current_directory+'/fertilizer2311.pkl')
+        find = fertilizer.predict(self.crop_arr2)
+        fertilizer_output = self.fer_perticular(find)
+        return crop_output ,fertilizer_output
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    # Get features from the form submission
-    features = request.form
-    Nitrogen = float(features['Nitrogen'])
-    Phosphorus = float(features['Phosphorus'])
-    Potassium = float(features['Potassium'])
-    pH = float(features['pH'])
-    Temperature = float(features['Temperature'])
-    District_Name = features['District_Name']
-    Soil_color = features['Soil_color']
+    def crop_perticular(self,crop):
+        if crop == 0:
+            crop_find = 'Cotton'
+        elif crop == 1:
+            crop_find = 'Ginger'
+        elif crop == 2:
+            crop_find = 'Gram'
+        elif crop == 3:
+            crop_find = 'Grapes'
+        elif crop == 4:
+            crop_find = 'Groundnut'
+        elif crop == 5:
+            crop_find = 'Jowar'
+        elif crop == 6:
+            crop_find = 'Maize'
+        elif crop ==7 :
+            crop_find = 'Masoor'
+        elif crop == 8:
+            crop_find = 'Moong'
+        elif crop == 9:
+            crop_find = 'Rice'
+        elif crop == 10:
+            crop_find = 'Sugarcane'
+        elif crop == 11:
+            crop_find = 'Tur'
+        elif crop == 12:
+            crop_find= 'Turmeric'
+        elif crop == 13:
+            crop_find = 'Rice'
+        else:
+            crop_find = 'Sugarcane'
 
-    # Preprocess and scale the input data
-    input_data = preprocess_input(Nitrogen, Phosphorus, Potassium, pH, Temperature, District_Name, Soil_color)
-    scaled_input = scale_input(input_data)
-    
-    # Make prediction using the loaded model
-    prediction = model.predict(scaled_input)
-    print(prediction)
-    
-    # Get the preferred crop based on the prediction
-    preferred_crop = predicted_crop(prediction[0])
-    
-    # Render the template with the prediction
-    return render_template('index.html', prediction=preferred_crop)
+        return crop_find
+
+    def fer_perticular(self,fer):
+        if fer==0:
+            fer_na= "10:10:10 NPK"
+        elif fer==1:
+            fer_na="10:26:26 NPK"
+        elif fer==2:
+            fer_na='12:32:16 NPK'
+        elif fer==3:
+            fer_na='13:32:26 NPK'
+        elif fer==4:
+            fer_na='19:19:19 NPK'
+        elif fer==5:
+            fer_na='50:26:26 NPK'
+        elif fer==6:
+            fer_na='Ammonium Sulphate'
+        elif fer==7:
+            fer_na='Chilated Micronutrient'
+        elif fer==8:
+            fer_na='DAP'
+        elif fer==9:
+            fer_na='Ferrous Sulphate'
+        elif fer==10:
+            fer_na='MOP'
+        elif fer==11:
+            fer_na='Magnesium Sulphate'
+        elif fer==12:
+            fer_na='SSP'
+        else:
+            fer_na='Urea'
+
+        return fer_na
+
+    def get_weather(self):
+        data = request.get_json()
+        latitude = data['latitude']
+        longitude = data['longitude']
+        print(latitude)
+        api_key = "1e92e74cf6380f493c062773f324d611"
+        url = f'https://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={api_key}'
+        response = requests.get(url)
+        if response.status_code == 200:
+            weather_data = response.json()
+            temperature = weather_data['main']['temp']
+            self.temperature = round(temperature - 273,1)
+            print("help")
+            return jsonify({'temperature': self.temperature})
+        else:
+            return jsonify({'error': 'Failed to retrieve weather data'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    website = Website()
+    website.app.run(host='0.0.0.0', port=8000,debug=True)
